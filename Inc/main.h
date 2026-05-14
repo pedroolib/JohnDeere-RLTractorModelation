@@ -126,5 +126,7 @@ typedef struct
 void USER_SystemClock_Config( void );
 void USER_GPIO_Init( void );
 void USER_Delay_1sec( void );
+void USER_ADC_Init( void );
+uint16_t USER_ADC_Read( void );
 
 #endif /* MAIN_H_ */
