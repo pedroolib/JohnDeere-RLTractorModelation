@@ -3,6 +3,7 @@
 #include <stdint.h> // 							standard integer library
 #include "main.h"
 #include "lcd.h"
+#include "delay.h"
 
 /* Superloop structure */
 int main(void)
@@ -10,6 +11,11 @@ int main(void)
 	/* Declarations and Initializations */
 	USER_SystemClock_Config( ); // 				configure the system clock to 64 MHz
 	USER_GPIO_Init( ); // 						initialize GPIOA pin 5 as output (for LD2)
+
+	// Wait for LCD power stabilization (>100ms)
+	for( int i = 0; i < 100; i++ )
+		USER_TIM_Delay_1ms( );
+
 	LCD_Init( ); // 						initialize LCD display
 
 	/* Show fixed test values on LCD */
@@ -67,8 +73,8 @@ void USER_SystemClock_Config( void ){
 
 void USER_Delay_1sec( void ){
 	__asm(" 		ldr r0, =7111111UL	");//				load the value to be used as delay count
-	__asm(" again:	sub r0, r0, #1		");//				decrement the delay count
-	__asm("			cmp r0, #0			");//				check if the delay count has reached zero
-	__asm("			bne again			");//				if not, repeat the process
-	__asm("			nop					");//				no operation (to ensure exact timing)
+	__asm(" again:\tsub r0, r0, #1\t\t");//				decrement the delay count
+	__asm("         \tcmp r0, #0          ");//				check if the delay count has reached zero
+	__asm("         \tbne again           ");//				if not, repeat the process
+	__asm("         \tnop                 ");//				no operation (to ensure exact timing)
 }
