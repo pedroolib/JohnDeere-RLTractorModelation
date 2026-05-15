@@ -45,6 +45,11 @@ set(sources_SRCS
 	${CMAKE_CURRENT_SOURCE_DIR}/Src/main.c
 	${CMAKE_CURRENT_SOURCE_DIR}/Src/lcd.c
 	${CMAKE_CURRENT_SOURCE_DIR}/Src/delay.c
+	${CMAKE_CURRENT_SOURCE_DIR}/Src/EngTrModel.c
+	${CMAKE_CURRENT_SOURCE_DIR}/Src/EngTrModel_data.c
+	${CMAKE_CURRENT_SOURCE_DIR}/Src/rt_nonfinite.c
+	${CMAKE_CURRENT_SOURCE_DIR}/Src/rtGetInf.c
+	${CMAKE_CURRENT_SOURCE_DIR}/Src/rtGetNaN.c
 )
 
 # Include directories for all compilers
@@ -114,7 +119,13 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
 )
 
 # Add linked libraries
-target_link_libraries(${CMAKE_PROJECT_NAME} ${link_LIBS})
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
+    ${link_LIBS}
+    m
+    c
+    stdc++
+    supc++
+)
 
 # Compiler options
 target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE

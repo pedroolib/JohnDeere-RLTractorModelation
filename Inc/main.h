@@ -123,10 +123,19 @@ typedef struct
 #define TIM3		(( TIM_TypeDef  *)TIM3_BASE  )//	TIM3 base address points to TIM structure
 #define USART1		(( USART_TypeDef *)USART1_BASE )//	USART1 base address points to USART structure
 
+/* NVIC registers */
+#define NVIC_ISER0	(*(volatile uint32_t *)0xE000E100UL)
+#define NVIC_ICER0	(*(volatile uint32_t *)0xE000E180UL)
+#define NVIC_ISPR0	(*(volatile uint32_t *)0xE000E200UL)
+#define NVIC_ICPR0	(*(volatile uint32_t *)0xE000E280UL)
+
 void USER_SystemClock_Config( void );
 void USER_GPIO_Init( void );
 void USER_Delay_1sec( void );
 void USER_ADC_Init( void );
 uint16_t USER_ADC_Read( void );
+void USER_TIM2_Init( void );
+void USER_Brake_Init( void );
+uint8_t USER_Brake_Read( void );
 
 #endif /* MAIN_H_ */

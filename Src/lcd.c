@@ -16,136 +16,116 @@ const int8_t UserFont[8][8] =
 		{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }
 };
 
-//Funcion que inicializa el LCD a 4 bits
 void LCD_Init(void){
 	int8_t const *p;
-/**
-  * Configuracion de todos los pines hacia el LCD general purpose output push-pull, 10 MHz speed
-  */
-	RCC->APB2ENR	|=	 ( 0x1UL <<  4U );//			IO port C clock enable	
+
+	RCC->APB2ENR	|= 	( 0x1UL <<  4U );
 	GPIOC->CRL		&=	~( 0x3UL << 30U ) & ~( 0x2UL << 28U )
 					& 	~( 0x3UL << 26U ) & ~( 0x2UL << 24U );
 	GPIOC->CRL 		|= 	 ( 0x1UL << 28U )
-					|  	 ( 0x1UL << 24U );
+					| 	 ( 0x1UL << 24U );
 	GPIOC->CRH		&=	~( 0x3UL << 18U ) & ~( 0x2UL << 16U )
 					& 	~( 0x3UL << 14U ) & ~( 0x2UL << 12U )
 					&	~( 0x3UL << 10U ) & ~( 0x2UL <<  8U )
 					& 	~( 0x3UL <<  6U ) & ~( 0x2UL <<  4U )
 					& 	~( 0x3UL <<  2U ) & ~( 0x2UL <<  0U );
 	GPIOC->CRH		|= 	 ( 0x1UL << 16U )
-					|  	 ( 0x1UL << 12U )
+					| 	 ( 0x1UL << 12U )
 					| 	 ( 0x1UL <<  8U )
-					|  	 ( 0x1UL <<  4U )
-					|  	 ( 0x1UL <<  0U );
-/**
-  * Inicialización del LCD
-  * https://web.alfredstate.edu/faculty/weimandn/lcd/lcd_initialization/lcd_initialization_index.html
-  * Power ON
-  */
-	GPIOC->BSRR	 =	 LCD_RS_PIN_LOW;
-	GPIOC->BSRR	 =	 LCD_RW_PIN_LOW;
-	GPIOC->BSRR	 =	 LCD_EN_PIN_LOW;
-	GPIOC->BSRR	 =	 LCD_D4_PIN_LOW;
-	GPIOC->BSRR	 =	 LCD_D5_PIN_LOW;
-	GPIOC->BSRR	 =	 LCD_D6_PIN_LOW;
-	GPIOC->BSRR	 =	 LCD_D7_PIN_LOW;
-	USER_TIM2_Delay_40ms();// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! wait > 40ms
-	/* Special case of 'Function Set' 				*/
-	GPIOC->BSRR	 =	 LCD_D4_PIN_HIGH;
-	GPIOC->BSRR	 =	 LCD_D5_PIN_HIGH;
-	GPIOC->BSRR	 =	 LCD_D6_PIN_LOW;
-	GPIOC->BSRR	 =	 LCD_D7_PIN_LOW;
-	LCD_Pulse_EN( );
-	USER_TIM_Delay_4_1ms();// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! wait > 4.1ms
-	/* Special case of 'Function Set' 				*/
-	GPIOC->BSRR	 =	 LCD_D4_PIN_HIGH;
-	GPIOC->BSRR	 =	 LCD_D5_PIN_HIGH;
-	GPIOC->BSRR	 =	 LCD_D6_PIN_LOW;
-	GPIOC->BSRR	 =	 LCD_D7_PIN_LOW;
-	LCD_Pulse_EN( );
-	USER_TIM_Delay_53us();// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!	wait > 53us
-	/* Special case of 'Function Set' 				*/
-	GPIOC->BSRR	 =	 LCD_D4_PIN_HIGH;
-	GPIOC->BSRR	 =	 LCD_D5_PIN_HIGH;
-	GPIOC->BSRR	 =	 LCD_D6_PIN_LOW;
-	GPIOC->BSRR	 =	 LCD_D7_PIN_LOW;
-	LCD_Pulse_EN( );
-	while( LCD_Busy( ) );//						checking the busy flag
-	/* Initial 'Function Set' to change 4-bit mode 			*/
-	GPIOC->BSRR	 =	 LCD_D4_PIN_LOW;
-	GPIOC->BSRR	 =	 LCD_D5_PIN_HIGH;
-	GPIOC->BSRR	 =	 LCD_D6_PIN_LOW;
-	GPIOC->BSRR	 =	 LCD_D7_PIN_LOW;
-	LCD_Pulse_EN( );
-	while( LCD_Busy( ) );//						checking the busy flag
-	/* 'Function Set' (I=1, N and F as required)			*/
-	LCD_Write_Cmd( 0x28U );//					2-line display, 5x7 dot
-	/* 'Display ON/OFF Control' (D=0, C=0, B=0)			*/
-	LCD_Write_Cmd( 0x08U );//					display, cursor and blinking off
-	/* 'Clear Display'						*/
-	LCD_Write_Cmd( 0x01U );//
-	/* 'Entry Mode Set' (I/D and S as required)			*/
-	LCD_Write_Cmd( 0x06U );//					cursor increment by 1, shift off
-	/* Initialization Ends						*/
-	LCD_Write_Cmd( 0x0FU );//					display, cursor and blinking on
+					| 	 ( 0x1UL <<  4U )
+					| 	 ( 0x1UL <<  0U );
 
-	//Cargamos el caracter definido por el usuario en la CGRAM
-	LCD_Write_Cmd( 0x40 );//					establece la direccion CGRAM desde 0
+	GPIOC->BSRR	 =	LCD_RS_PIN_LOW;
+	GPIOC->BSRR	 =	LCD_RW_PIN_LOW;
+	GPIOC->BSRR	 =	LCD_EN_PIN_LOW;
+	GPIOC->BSRR	 =	LCD_D4_PIN_LOW;
+	GPIOC->BSRR	 =	LCD_D5_PIN_LOW;
+	GPIOC->BSRR	 =	LCD_D6_PIN_LOW;
+	GPIOC->BSRR	 =	LCD_D7_PIN_LOW;
+
+	USER_TIM2_Delay_40ms( );
+
+	LCD_Out_Data4( 0x03U );
+	LCD_Pulse_EN( );
+	USER_TIM_Delay_4_1ms( );
+
+	LCD_Out_Data4( 0x03U );
+	LCD_Pulse_EN( );
+	USER_TIM_Delay_100us( );
+
+	LCD_Out_Data4( 0x03U );
+	LCD_Pulse_EN( );
+	USER_TIM_Delay_53us( );
+
+	LCD_Out_Data4( 0x02U );
+	LCD_Pulse_EN( );
+	USER_TIM_Delay_53us( );
+
+	LCD_Write_Cmd( 0x28U );
+	LCD_Write_Cmd( 0x08U );
+	LCD_Write_Cmd( 0x01U );
+	LCD_Write_Cmd( 0x06U );
+	LCD_Write_Cmd( 0x0FU );
+
+	LCD_Write_Cmd( 0x40U );
 	p = &UserFont[0][0];
-
-	for( int i = 0; i < sizeof( UserFont ); i++, p++ )
+	for( int i = 0; i < (int)sizeof( UserFont ); i++, p++ )
 		LCD_Put_Char( *p );
 
-	/*	Set DDRAM address in address			*/
-	LCD_Write_Cmd( 0x80 );//
+	LCD_Write_Cmd( 0x80U );
 }
 
-//Funcion que genera un strobe en el LCD
 void LCD_Out_Data4(uint8_t val){
-	if( ( val & 0x01U ) == 0x01U )//				Bit[0]
+	if( ( val & 0x01U ) == 0x01U )
 		GPIOC->BSRR	=	LCD_D4_PIN_HIGH;
 	else
 		GPIOC->BSRR	=	LCD_D4_PIN_LOW;
 
-	if( ( val & 0x02U ) == 0x02U )//				Bit[1]
+	if( ( val & 0x02U ) == 0x02U )
 		GPIOC->BSRR	=	LCD_D5_PIN_HIGH;
 	else
 		GPIOC->BSRR	=	LCD_D5_PIN_LOW;
 
-	if( ( val & 0x04U ) == 0x04U )//				Bit[2]
+	if( ( val & 0x04U ) == 0x04U )
 		GPIOC->BSRR	=	LCD_D6_PIN_HIGH;
 	else
 		GPIOC->BSRR	=	LCD_D6_PIN_LOW;
 
-	if( ( val & 0x08U ) == 0x08U )//				Bit[3]
+	if( ( val & 0x08U ) == 0x08U )
 		GPIOC->BSRR	=	LCD_D7_PIN_HIGH;
 	else
 		GPIOC->BSRR	=	LCD_D7_PIN_LOW;
 }
 
-//Funcion que escribe 1 byte de datos en el LCD
+void LCD_Pulse_EN(void){
+	GPIOC->BSRR	=	LCD_EN_PIN_LOW;
+	USER_TIM_Delay_10us( );
+	GPIOC->BSRR	=	LCD_EN_PIN_HIGH;
+	USER_TIM_Delay_10us( );
+	GPIOC->BSRR	=	LCD_EN_PIN_LOW;
+	USER_TIM_Delay_53us( );
+}
+
 void LCD_Write_Byte(uint8_t val){
 	LCD_Out_Data4( ( val >> 4 ) & 0x0FU );
 	LCD_Pulse_EN( );
 	LCD_Out_Data4( val & 0x0FU );
 	LCD_Pulse_EN( );
-	while( LCD_Busy( ) );
+	USER_TIM_Delay_53us( );
 }
 
-//Funcion que escribe un comando en el LCD
 void LCD_Write_Cmd(uint8_t val){
-	GPIOC->BSRR	=	LCD_RS_PIN_LOW;//			RS=0 (seleccion de comando)
+	GPIOC->BSRR	=	LCD_RS_PIN_LOW;
 	LCD_Write_Byte( val );
+	if( val == 0x01U || val == 0x02U )
+		USER_TIM_Delay_1ms( );
 }
 
-//Escribe un caracter ASCII en el LCD
 void LCD_Put_Char(uint8_t c){
-	GPIOC->BSRR	=	LCD_RS_PIN_HIGH;//			RS=1 (seleccion de caracteres)
+	GPIOC->BSRR	=	LCD_RS_PIN_HIGH;
 	LCD_Write_Byte( c );
 }
 
-//Funcion que establece el cursor en una posicion de la pantalla del LCD
-//Minimum values for line and column must be 1
 void LCD_Set_Cursor(uint8_t line, uint8_t column){
 	uint8_t address;
 	column--;
@@ -155,18 +135,20 @@ void LCD_Set_Cursor(uint8_t line, uint8_t column){
 	LCD_Write_Cmd( address );
 }
 
-//Funcion que envia una cadena de caracteres ASCII al LCD
 void LCD_Put_Str(char * str){
 	for( int16_t i = 0; i < 16 && str[ i ] != 0; i++ )
-		LCD_Put_Char( str[ i ] );//				envia 1 byte al LCD
+		LCD_Put_Char( str[ i ] );
 }
 
-//Funcion que envia un caracter numerico al LCD
-//El número debe ser entero y de 5 dígitos máximo
 void LCD_Put_Num(int16_t num){
 	int16_t p;
 	int16_t f = 0;
 	int8_t ch[ 5 ];
+
+	if( num == 0 ){
+		LCD_Put_Char( '0' );
+		return;
+	}
 
 	for( int16_t i = 0; i < 5; i++ ){
 		p = 1;
@@ -182,55 +164,30 @@ void LCD_Put_Num(int16_t num){
 	}
 }
 
-//Funcion que provoca tiempos de espera en el LCD
 char LCD_Busy(void){
-/**
-  * Configuracion de D7 as input floating
-  */
 	GPIOC->CRH	&=	~( 0x2UL << 18U ) & ~( 0x3UL << 16U );
-	GPIOC->CRH	|=   ( 0x1UL << 18U );
+	GPIOC->CRH	|=	 ( 0x1UL << 18U );
 	GPIOC->BSRR	 =	 LCD_RS_PIN_LOW;
 	GPIOC->BSRR	 =	 LCD_RW_PIN_HIGH;
 	GPIOC->BSRR	 =	 LCD_EN_PIN_HIGH;
-	USER_TIM_Delay_100us();// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! wait for 100us
-	if(( GPIOC->IDR	& LCD_D7_PIN_HIGH )) {//			if D7 is set, then
-		GPIOC->BSRR	= 	LCD_EN_PIN_LOW;
+	USER_TIM_Delay_100us( );
+	if(( GPIOC->IDR & LCD_D7_PIN_HIGH )) {
+		GPIOC->BSRR	=	LCD_EN_PIN_LOW;
 		GPIOC->BSRR	=	LCD_RW_PIN_LOW;
-/**
-  * Configuracion de D7 as output push-pull, 10 MHz speed
-  */
 		GPIOC->CRH	&=	~( 0x3UL << 18U ) & ~( 0x2UL << 16U );
-		GPIOC->CRH	|=   ( 0x1UL << 16U );
+		GPIOC->CRH	|=	 ( 0x1UL << 16U );
 		return 1;
 	} else {
-		GPIOC->BSRR	= 	LCD_EN_PIN_LOW;
+		GPIOC->BSRR	=	LCD_EN_PIN_LOW;
 		GPIOC->BSRR	=	LCD_RW_PIN_LOW;
-/**
-  * Configuracion de D7 as output push-pull, 10 MHz speed
-  */
 		GPIOC->CRH	&=	~( 0x3UL << 18U ) & ~( 0x2UL << 16U );
-		GPIOC->CRH	|=   ( 0x1UL << 16U );
+		GPIOC->CRH	|=	 ( 0x1UL << 16U );
 		return 0;
 	}
 }
 
-//Funcion que genera un pulso en el pin EN del LCD
-void LCD_Pulse_EN(void){
-	GPIOC->BSRR	=	LCD_EN_PIN_LOW;//
-	USER_TIM_Delay_10us();// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! wait for	10us
-	GPIOC->BSRR	=	LCD_EN_PIN_HIGH;//			habilita pin EN ON
-	USER_TIM_Delay_10us();// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! wait for	10us
-	GPIOC->BSRR	=	LCD_EN_PIN_LOW;//			habilita pin EN OFF
-	USER_TIM_Delay_1ms();// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! wait for	1ms
-}
-
-/*
- * Funcion que muestra un caracter grafico en el LCD
- * en 'value' el valor de su posicion en CGRAM y
- * en 'size' especificamos su tamaño
- */
 void LCD_BarGraphic(int16_t value, int16_t size){
-	value = value * size / 20;//					matriz de 5x8 pixeles
+	value = value * size / 20;
 	for( int16_t i = 0; i < size; i++ ){
 		if( value > 5 ){
 			LCD_Put_Char( 0x05U );
@@ -242,10 +199,6 @@ void LCD_BarGraphic(int16_t value, int16_t size){
 	}
 }
 
-/*
- * Funcion que muestra un caracter grafico en el LCD especificando 
- * la posicion pos_x horizontal de inicio y la posicion pos_y vertical de la pantalla LCD
- */
 void LCD_BarGraphicXY(int16_t pos_x, int16_t pos_y, int16_t value){
 	LCD_Set_Cursor( pos_x, pos_y );
 	for( int16_t i = 0; i < 16; i++ ){

@@ -1,139 +1,190 @@
 /* ******************************************* START *********************************************** */
 /* Libraries, Definitions and Global Declarations */
-#include <stdint.h> // 							standard integer library
+#include <stdint.h>
 #include "main.h"
 #include "lcd.h"
 #include "delay.h"
+#include "EngTrModel.h"
+
+/* Global variables for ISR-to-main communication */
+volatile uint16_t g_adc_val = 0;
+volatile uint8_t  g_brake = 0;
+volatile double   g_engine_rpm = 0.0;
+volatile double   g_vehicle_speed = 0.0;
+volatile double   g_gear = 0.0;
 
 /* Superloop structure */
 int main(void)
 {
 	/* Declarations and Initializations */
-	USER_SystemClock_Config( ); // 				configure the system clock to 64 MHz
-	USER_GPIO_Init( ); // 						initialize GPIOA pin 5 as output (for LD2)
-	USER_ADC_Init( ); // 						initialize ADC1 for potentiometer on PA0
+	USER_SystemClock_Config( );
+	USER_GPIO_Init( );
+	USER_ADC_Init( );
+	USER_TIM2_Init( );
+	USER_Brake_Init( );
 
-	// Wait for LCD power stabilization (>100ms)
+	/* Wait for LCD power stabilization (>100ms) */
 	for( int i = 0; i < 100; i++ )
 		USER_TIM_Delay_1ms( );
 
-	LCD_Init( ); // 						initialize LCD display
+	LCD_Init( );
 
-	/* Show acceleration on LCD */
+	/* Initialize transmission model */
+	EngTrModel_initialize( );
+
+	/* Initial LCD display */
 	LCD_Clear( );
 	LCD_Set_Cursor( 1, 1 );
-	LCD_Put_Str( "ACC:  0%" );
+	LCD_Put_Str( "RPM:    V:  " );
 	LCD_Set_Cursor( 2, 1 );
-	LCD_Put_Str( "Gear:3" );
+	LCD_Put_Str( "G:1 ACC: 0%" );
 
     /* Repetitive block */
     for(;;){
-    	uint16_t adc_val = USER_ADC_Read( );//		read potentiometer value (0-4095)
-    	uint16_t acc_pct = ( adc_val * 100 ) / 4095;//	convert to 0-100%
+    	uint16_t rpm_i   = (uint16_t)g_engine_rpm;
+    	uint16_t vel_i   = (uint16_t)g_vehicle_speed;
+    	uint8_t  gear_i  = (uint8_t)g_gear;
+    	uint16_t adc_pct = (uint16_t)((g_adc_val * 100U) / 4095U);
 
-    	// Update acceleration percentage on LCD with fixed width
-    	LCD_Set_Cursor( 1, 6 );//				position cursor after "ACC: "
-    	if( acc_pct < 100 )
-    		LCD_Put_Char( ' ' );
-    	if( acc_pct < 10 )
-    		LCD_Put_Char( ' ' );
-    	LCD_Put_Num( acc_pct );
+    	/* Update Line 1: RPM and Vehicle Speed */
+    	LCD_Set_Cursor( 1, 5 );
+    	LCD_Put_Num( rpm_i );
+    	LCD_Set_Cursor( 1, 12 );
+    	LCD_Put_Num( vel_i );
 
-    	GPIOA->ODR	^=	( 0x1UL <<  5U );//		value to toggle pin 5 of Port A (Toggle LD2)
-    	USER_Delay_1sec( ); // 					delay function to create a visible blinking effect on LD2
+    	/* Update Line 2: Gear and Acceleration */
+    	LCD_Set_Cursor( 2, 3 );
+    	LCD_Put_Num( gear_i );
+    	LCD_Set_Cursor( 2, 9 );
+    	if( adc_pct < 100 )
+    		LCD_Put_Char( ' ' );
+    	if( adc_pct < 10 )
+    		LCD_Put_Char( ' ' );
+    	LCD_Put_Num( adc_pct );
+
+    	GPIOA->ODR	^=	( 0x1UL << 5U );
+    	USER_Delay_1sec( );
     }
 }
 
 void USER_GPIO_Init( void ){
-	// RCC_APB2ENR modified to IO port A clock enable
-	RCC->APB2ENR	= RCC->APB2ENR//			RCC_APB2ENR actual value
-					|//								to set
-					( 0x1UL << 2U );//				(mask) IOPAEN bit
+	/* Enable clocks for GPIOA and GPIOC */
+	RCC->APB2ENR	=	RCC->APB2ENR
+						| ( 0x1UL << 2U )  /* IOPAEN */
+						| ( 0x1UL << 4U ); /* IOPCEN */
 
-	// GPIOx_ODR modified to reset pin 5 of port A (LD2 is connected to PA5)
-	GPIOA->ODR		= GPIOA->ODR//					GPIOx_ODR actual value
-					&//								to clear
-					~( 0x1UL << 5U );//				(mask) ODR5 bit
-
-	// GPIOx_CRL modified to configure pin5 as output
-	GPIOA->CRL		=	GPIOA->CRL//					GPIOx_CRL actual value
-					&//								to clear
-					~( 0x3UL << 22U )//				(mask) CNF5[1:0] bits
-					&//								to clear
-					~( 0x2UL << 20U );//				(mask) MODE5_1 bit
-
-	// GPIOx_CRL modified to select pin5 max speed of 10MHz
-	GPIOA->CRL		=	GPIOA->CRL//					GPIOx_CRL actual value
-					|//								to set
-					( 0x1UL << 20U );//				(mask) MODE5_0 bit
-}
-
-void USER_SystemClock_Config( void ){
-	FLASH->ACR	&=	~( 0x5UL <<  0U );//			two wait states latency, if SYSCLK > 48MHz
-	FLASH->ACR	|=	 ( 0x2UL <<  0U );//			two wait states latency, if SYSCLK > 48MHz
-	RCC->CFGR	&=	~( 0x1UL << 16U )//				PLL HSI oscillator clock /2 selected as PLL input clock
-				&	~( 0x7UL << 11U )// 				APB2 prescaler /1
-				&	~( 0x3UL <<  8U );// 				APB1 prescaler /2
-	RCC->CFGR	|=	 ( 0xFUL << 18U )//				PLL input clock x 16 (PLLMUL bits)
-				|	 ( 0x4UL <<  8U );//				APB1 prescaler /2
-	RCC->CR		|=	 ( 0x1UL << 24U );//				PLL2 ON
-	while( !(RCC->CR & ~( 0x1UL << 25U )));//				wait until PLL is locked
-	RCC->CFGR	&=	~( 0x1UL << 0U  );//				PLL used as system clock (SW bits)
-	RCC->CFGR	|=	 ( 0x2UL << 0U  );//				PLL used as system clock (SW bits)
-	while( 0x8UL != ( RCC->CFGR & 0xCUL ));//				wait until PLL is switched
-}
-
-void USER_Delay_1sec( void ){
-	__asm(" 		ldr r0, =7111111UL	");//				load the value to be used as delay count
-	__asm(" loop_1sec:\tsub r0, r0, #1\t\t");//				decrement the delay count
-	__asm("         \tcmp r0, #0          ");//				check if the delay count has reached zero
-	__asm("         \tbne loop_1sec       ");//				if not, repeat the process
-	__asm("         \tnop                 ");//				no operation (to ensure exact timing)
+	/* PA5: Output for LD2 */
+	GPIOA->ODR		&=	~( 0x1UL << 5U );
+	GPIOA->CRL		&=	~( 0x3UL << 22U ) & ~( 0x2UL << 20U );
+	GPIOA->CRL		|=	 ( 0x1UL << 20U );
 }
 
 void USER_ADC_Init( void ){
-	// RCC_APB2ENR modified to enable ADC1 clock (IOPAEN already enabled in GPIO_Init)
-	RCC->APB2ENR	= RCC->APB2ENR//			RCC_APB2ENR actual value
-					|//								to set
-					( 0x1UL << 9U );//				(mask) ADC1EN bit
+	/* Enable ADC1 clock */
+	RCC->APB2ENR	|=	( 0x1UL << 9U );
 
-	// GPIOx_CRL modified to configure pin0 as analog input (CNF=00, MODE=00)
-	GPIOA->CRL		=	GPIOA->CRL//					GPIOx_CRL actual value
-					&//								to clear
-					~( 0x3UL << 2U )//				(mask) CNF0[1:0] bits
-					&//								to clear
-					~( 0x3UL << 0U );//				(mask) MODE0[1:0] bits
+	/* PA0: Analog input (CNF=00, MODE=00) */
+	GPIOA->CRL		&=	~( 0x3UL << 2U ) & ~( 0x3UL << 0U );
 
-	// ADC1_SMPR2: set sample time for channel 0 to 239.5 cycles (max precision)
+	/* Sample time 239.5 cycles for channel 0 */
 	ADC1->SMPR2		|=	( 0x7UL << 0U );
 
-	// ADC1_SQR1: set sequence length to 1 conversion (L=0)
+	/* Sequence length = 1, first channel = 0 */
 	ADC1->SQR1		&=	~( 0xFUL << 20U );
-
-	// ADC1_SQR3: set first conversion in sequence to channel 0
 	ADC1->SQR3		&=	~( 0x1FUL << 0U );
 
-	// ADC1_CR2: turn on ADC (ADON=1)
+	/* Turn on ADC */
 	ADC1->CR2		|=	( 0x1UL << 0U );
 
-	USER_TIM_Delay_1ms( );//						wait for ADC stabilization (~1 ms)
+	USER_TIM_Delay_1ms( );
 
-	// ADC1_CR2: reset calibration registers (RSTCAL=1)
+	/* Calibration */
 	ADC1->CR2		|=	( 0x1UL << 3U );
-	while( ADC1->CR2 & ( 0x1UL << 3U ) );//			wait until RSTCAL is cleared by hardware
-
-	// ADC1_CR2: start calibration (CAL=1)
+	while( ADC1->CR2 & ( 0x1UL << 3U ) );
 	ADC1->CR2		|=	( 0x1UL << 2U );
-	while( ADC1->CR2 & ( 0x1UL << 2U ) );//			wait until CAL is cleared by hardware
+	while( ADC1->CR2 & ( 0x1UL << 2U ) );
 }
 
 uint16_t USER_ADC_Read( void ){
-	// ADC1_CR2: start conversion by setting ADON a second time
 	ADC1->CR2		|=	( 0x1UL << 0U );
-
-	// Wait until End of Conversion (EOC) flag is set (bit 1 of SR)
 	while( !( ADC1->SR & ( 0x1UL << 1U ) ) );
-
-	// Return the 12-bit result from Data Register
 	return ( uint16_t )( ADC1->DR & 0x0FFFU );
+}
+
+void USER_TIM2_Init( void ){
+	/* Enable TIM2 clock (APB1) */
+	RCC->APB1ENR	|=	( 0x1UL << 0U );
+
+	/* TIM2 config for 40ms interrupt at APB1=32MHz */
+	TIM2->PSC		=	6399;   /* 32MHz/6400 = 5kHz */
+	TIM2->ARR		=	199;    /* 5000/200 = 25Hz = 40ms */
+	TIM2->DIER		|=	( 0x1UL << 0U ); /* Update interrupt enable */
+	TIM2->CR1		|=	( 0x1UL << 0U ); /* Counter enable */
+
+	/* Enable TIM2 interrupt in NVIC (IRQ 28) */
+	NVIC_ISER0		|=	( 0x1UL << 28U );
+}
+
+void USER_Brake_Init( void ){
+	/* PA1: Input with pull-up (CNF=10, MODE=00) */
+	GPIOA->CRL		&=	~( 0x3UL << 6U ); /* clear CNF1 */
+	GPIOA->CRL		|=	 ( 0x2UL << 6U ); /* CNF1 = 10 (input pull-up/pull-down) */
+	GPIOA->CRL		&=	~( 0x3UL << 4U ); /* MODE1 = 00 (input) */
+	GPIOA->ODR		|=	 ( 0x1UL << 1U ); /* Pull-up enabled */
+}
+
+uint8_t USER_Brake_Read( void ){
+	return ( uint8_t )(( GPIOA->IDR >> 1U ) & 0x1UL );
+}
+
+void USER_SystemClock_Config( void ){
+	FLASH->ACR	&=	~( 0x5UL << 0U );
+	FLASH->ACR	|=	 ( 0x2UL << 0U );
+	RCC->CFGR	&=	~( 0x1UL << 16U )
+					&	~( 0x7UL << 11U )
+					&	~( 0x3UL <<  8U );
+	RCC->CFGR	|=	 ( 0xFUL << 18U )
+					|	 ( 0x4UL <<  8U );
+	RCC->CR		|=	 ( 0x1UL << 24U );
+	while( !(RCC->CR & ~( 0x1UL << 25U )));
+	RCC->CFGR	&=	~( 0x1UL << 0U  );
+	RCC->CFGR	|=	 ( 0x2UL << 0U  );
+	while( 0x8UL != ( RCC->CFGR & 0xCUL ));
+}
+
+void USER_Delay_1sec( void ){
+	__asm(" 		ldr r0, =7111111UL	");
+	__asm(" loop_1sec:\tsub r0, r0, #1\t\t");
+	__asm("         \tcmp r0, #0          ");
+	__asm("         \tbne loop_1sec       ");
+	__asm("         \tnop                 ");
+}
+
+/* TIM2 Interrupt Handler - runs every 40ms */
+void TIM2_IRQHandler(void){
+	/* Clear update interrupt flag */
+	TIM2->SR		&=	~( 0x1UL << 0U );
+
+	/* Read sensors */
+	g_adc_val		=	USER_ADC_Read( );
+	g_brake			=	USER_Brake_Read( );
+
+	/* Map inputs to model per documentation:
+	 * Throttle: 1.5% to 100%
+	 * BrakeTorque: 0 to 100%
+	 */
+	double throttle = (double)((g_adc_val * 100.0) / 4095.0);
+	if( throttle < 1.5 ){
+		throttle = 1.5; /* Minimum idle throttle to prevent stall */
+	}
+	EngTrModel_U.Throttle		=	throttle;
+	EngTrModel_U.BrakeTorque	=	g_brake ? 100.0 : 0.0;
+
+	/* Execute model step */
+	EngTrModel_step( );
+
+	/* Copy outputs */
+	g_engine_rpm	=	EngTrModel_Y.EngineSpeed;
+	g_vehicle_speed	=	EngTrModel_Y.VehicleSpeed;
+	g_gear			=	EngTrModel_Y.Gear;
 }
