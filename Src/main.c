@@ -37,7 +37,7 @@ int main(void)
 	LCD_Set_Cursor( 1, 1 );
 	LCD_Put_Str( "RPM:    V:  " );
 	LCD_Set_Cursor( 2, 1 );
-	LCD_Put_Str( "G:1 ACC: 0%" );
+	LCD_Put_Str( "G:1 A:0% B:0" );
 
     /* Repetitive block */
     for(;;){
@@ -45,6 +45,7 @@ int main(void)
     	uint16_t vel_i   = (uint16_t)g_vehicle_speed;
     	uint8_t  gear_i  = (uint8_t)g_gear;
     	uint16_t adc_pct = (uint16_t)((g_adc_val * 100U) / 4095U);
+    	uint8_t  brake_active = g_brake ? 0 : 1; /* Inverted: 0=pressed, 1=not pressed */
 
     	/* Update Line 1: RPM and Vehicle Speed */
     	LCD_Set_Cursor( 1, 5 );
@@ -52,15 +53,17 @@ int main(void)
     	LCD_Set_Cursor( 1, 12 );
     	LCD_Put_Num( vel_i );
 
-    	/* Update Line 2: Gear and Acceleration */
+    	/* Update Line 2: Gear, Acceleration and Brake */
     	LCD_Set_Cursor( 2, 3 );
     	LCD_Put_Num( gear_i );
-    	LCD_Set_Cursor( 2, 9 );
+    	LCD_Set_Cursor( 2, 6 );
     	if( adc_pct < 100 )
     		LCD_Put_Char( ' ' );
     	if( adc_pct < 10 )
     		LCD_Put_Char( ' ' );
     	LCD_Put_Num( adc_pct );
+    	LCD_Set_Cursor( 2, 12 );
+    	LCD_Put_Num( brake_active );
 
     	GPIOA->ODR	^=	( 0x1UL << 5U );
     	USER_Delay_1sec( );
@@ -178,7 +181,11 @@ void TIM2_IRQHandler(void){
 		throttle = 1.5; /* Minimum idle throttle to prevent stall */
 	}
 	EngTrModel_U.Throttle		=	throttle;
-	EngTrModel_U.BrakeTorque	=	g_brake ? 100.0 : 0.0;
+	/* Brake logic is inverted because of pull-up:
+	 * g_brake = 1 when NOT pressed (PA1 is HIGH)
+	 * g_brake = 0 when PRESSED (PA1 is LOW, button connects to GND)
+	 */
+	EngTrModel_U.BrakeTorque	=	g_brake ? 0.0 : 100.0;
 
 	/* Execute model step */
 	EngTrModel_step( );
