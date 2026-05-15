@@ -135,6 +135,7 @@ void USER_Delay_1sec( void );
 void USER_ADC_Init( void );
 uint16_t USER_ADC_Read( void );
 void USER_TIM2_Init( void );
+void USER_TIM3_Init( void );
 void USER_Brake_Init( void );
 uint8_t USER_Brake_Read( void );
 

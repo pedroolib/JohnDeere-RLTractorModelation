@@ -21,6 +21,7 @@ int main(void)
 	USER_GPIO_Init( );
 	USER_ADC_Init( );
 	USER_TIM2_Init( );
+	USER_TIM3_Init( );
 	USER_Brake_Init( );
 
 	/* Wait for LCD power stabilization (>100ms) */
@@ -133,6 +134,51 @@ void USER_TIM2_Init( void ){
 	NVIC_ISER0		|=	( 0x1UL << 28U );
 }
 
+void USER_TIM3_Init( void ){
+	/* Enable TIM3 clock (APB1) and GPIOB clock (APB2) */
+	RCC->APB1ENR	|=	( 0x1UL << 1U );  /* TIM3EN */
+	RCC->APB2ENR	|=	( 0x1UL << 3U );  /* IOPBEN */
+
+	/* PA6 (TIM3_CH1): Alternate function push-pull, 10MHz (CNF=10, MODE=01) */
+	GPIOA->CRL		&=	~( 0x3UL << 30U ) & ~( 0x3UL << 28U );
+	GPIOA->CRL		|=	 ( 0x2UL << 30U ) | ( 0x1UL << 28U );
+	/* PA7 (TIM3_CH2): Alternate function push-pull, 10MHz (CNF=10, MODE=01) */
+	GPIOA->CRL		&=	~( 0x3UL << 26U ) & ~( 0x3UL << 24U );
+	GPIOA->CRL		|=	 ( 0x2UL << 26U ) | ( 0x1UL << 24U );
+
+	/* PB0 (TIM3_CH3): Alternate function push-pull, 10MHz (CNF=10, MODE=01) */
+	GPIOB->CRL		&=	~( 0x3UL << 2U ) & ~( 0x3UL << 0U );
+	GPIOB->CRL		|=	 ( 0x2UL << 2U ) | ( 0x1UL << 0U );
+	/* PB1 (TIM3_CH4): Alternate function push-pull, 10MHz (CNF=10, MODE=01) */
+	GPIOB->CRL		&=	~( 0x3UL << 6U ) & ~( 0x3UL << 4U );
+	GPIOB->CRL		|=	 ( 0x2UL << 6U ) | ( 0x1UL << 4U );
+
+	/* TIM3 config: 64MHz / 64 = 1MHz, ARR=999 -> 1kHz PWM frequency */
+	TIM3->PSC		=	63;
+	TIM3->ARR		=	999;
+
+	/* PWM Mode 1 on all 4 channels */
+	/* CH1: PWM Mode 1 (OC1M = 110), preload enable */
+	TIM3->CCMR1		&=	~( 0x7UL << 4U );
+	TIM3->CCMR1		|=	 ( 0x6UL << 4U ) | ( 0x1UL << 3U );
+	/* CH2: PWM Mode 1 (OC2M = 110), preload enable */
+	TIM3->CCMR1		&=	~( 0x7UL << 12U );
+	TIM3->CCMR1		|=	 ( 0x6UL << 12U ) | ( 0x1UL << 11U );
+	/* CH3: PWM Mode 1 (OC3M = 110), preload enable */
+	TIM3->CCMR2		&=	~( 0x7UL << 4U );
+	TIM3->CCMR2		|=	 ( 0x6UL << 4U ) | ( 0x1UL << 3U );
+	/* CH4: PWM Mode 1 (OC4M = 110), preload enable */
+	TIM3->CCMR2		&=	~( 0x7UL << 12U );
+	TIM3->CCMR2		|=	 ( 0x6UL << 12U ) | ( 0x1UL << 11U );
+
+	/* Enable all 4 channel outputs */
+	TIM3->CCER		|=	( 0x1UL << 0U ) | ( 0x1UL << 4U )
+					| ( 0x1UL << 8U ) | ( 0x1UL << 12U );
+
+	/* Enable counter and auto-reload preload */
+	TIM3->CR1		|=	( 0x1UL << 7U ) | ( 0x1UL << 0U );
+}
+
 void USER_Brake_Init( void ){
 	/* PA1: Input with pull-up (CNF=10, MODE=00) */
 	GPIOA->CRL		&=	~( 0x3UL << 6U ); /* clear CNF1 */
@@ -203,4 +249,25 @@ void TIM2_IRQHandler(void){
 	g_engine_rpm	=	EngTrModel_Y.EngineSpeed;
 	g_vehicle_speed	=	EngTrModel_Y.VehicleSpeed;
 	g_gear			=	EngTrModel_Y.Gear;
+
+	/* Update PWM LEDs based on Vehicle Speed and Gear */
+	/* Duty cycle: 0-1000 maps to 0-100% PWM */
+	uint16_t duty = (uint16_t)((g_vehicle_speed * 1000.0) / 120.0);
+	if( duty > 1000 ) duty = 1000;
+
+	/* Gear determines how many LEDs are ON */
+	uint8_t gear_i = (uint8_t)(g_gear + 0.5);
+	if( gear_i < 1 ) gear_i = 1;
+	if( gear_i > 4 ) gear_i = 4;
+
+	/* All channels get the same duty for speed indication */
+	TIM3->CCR1 = duty;
+	TIM3->CCR2 = duty;
+	TIM3->CCR3 = duty;
+	TIM3->CCR4 = duty;
+
+	/* Turn OFF LEDs for gears above current gear */
+	if( gear_i < 4 ) TIM3->CCR4 = 0;
+	if( gear_i < 3 ) TIM3->CCR3 = 0;
+	if( gear_i < 2 ) TIM3->CCR2 = 0;
 }
