@@ -44,7 +44,12 @@ int main(void)
     	uint16_t rpm_i   = (uint16_t)g_engine_rpm;
     	uint16_t vel_i   = (uint16_t)g_vehicle_speed;
     	uint8_t  gear_i  = (uint8_t)g_gear;
-    	uint16_t adc_pct = (uint16_t)((g_adc_val * 100U) / 4095U);
+    	uint16_t adc_pct;
+    	if( g_brake == 0 ){
+    		adc_pct = 0; /* BRAKE PRESSED: ignore potentiometer, show 0% */
+    	} else {
+    		adc_pct = (uint16_t)((g_adc_val * 100U) / 4095U);
+    	}
     	uint8_t  brake_active = g_brake ? 0 : 1; /* Inverted: 0=pressed, 1=not pressed */
 
     	/* Update Line 1: RPM and Vehicle Speed */
@@ -176,16 +181,20 @@ void TIM2_IRQHandler(void){
 	 * Throttle: 1.5% to 100%
 	 * BrakeTorque: 0 to 100%
 	 */
-	double throttle = (double)((g_adc_val * 100.0) / 4095.0);
-	if( throttle < 1.5 ){
-		throttle = 1.5; /* Minimum idle throttle to prevent stall */
+	double throttle;
+	if( g_brake == 0 ){
+		/* BRAKE PRESSED: interrupt potentiometer, cut throttle to idle */
+		throttle = 1.5;
+		EngTrModel_U.BrakeTorque	=	100.0;
+	} else {
+		/* BRAKE NOT PRESSED: normal acceleration from potentiometer */
+		throttle = (double)((g_adc_val * 100.0) / 4095.0);
+		if( throttle < 1.5 ){
+			throttle = 1.5; /* Minimum idle throttle to prevent stall */
+		}
+		EngTrModel_U.BrakeTorque	=	0.0;
 	}
 	EngTrModel_U.Throttle		=	throttle;
-	/* Brake logic is inverted because of pull-up:
-	 * g_brake = 1 when NOT pressed (PA1 is HIGH)
-	 * g_brake = 0 when PRESSED (PA1 is LOW, button connects to GND)
-	 */
-	EngTrModel_U.BrakeTorque	=	g_brake ? 0.0 : 100.0;
 
 	/* Execute model step */
 	EngTrModel_step( );
