@@ -112,6 +112,7 @@ typedef struct
 #define TIM2_BASE	0x40000000UL//		TIM2 base address
 #define TIM3_BASE	0x40000400UL//		TIM3 base address
 #define USART1_BASE	0x40013800UL//		USART1 base address
+#define USART2_BASE	0x40004400UL//		USART2 base address
 
 #define FLASH		(( FLASH_TypeDef *)FLASH_BASE )// 	FLASH base address points to FLASH structure
 #define RCC         (( RCC_TypeDef *)RCC_BASE )//		RCC base address points to RCC structure

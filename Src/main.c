@@ -1,6 +1,7 @@
 /* ******************************************* START *********************************************** */
 /* Libraries, Definitions and Global Declarations */
 #include <stdint.h>
+#include <stdio.h>
 #include "main.h"
 #include "lcd.h"
 #include "delay.h"
@@ -13,12 +14,68 @@ volatile double   g_engine_rpm = 0.0;
 volatile double   g_vehicle_speed = 0.0;
 volatile double   g_gear = 0.0;
 
+
+/* USART1 PA9 telemetry: STM32 PA9 -> ESP8266 GPIO14/D5 */
+static void USER_USART_PutChar( char c )
+{
+	while( !( USART1->SR & ( 1UL << 7U ) ) ); /* Wait for TXE */
+	USART1->DR = ( uint16_t )( uint8_t )c;
+}
+
+void USER_USART_SendString( const char *str )
+{
+	while( *str ){
+		USER_USART_PutChar( *str++ );
+	}
+}
+
+void USER_USART_Init( void )
+{
+	/* USART1 is on APB2. APB2 = 64 MHz. Baud = 9600. */
+	RCC->APB2ENR	|=	( 1UL << 0U );   /* AFIOEN */
+	RCC->APB2ENR	|=	( 1UL << 14U );  /* USART1EN */
+
+	/* PA9 / USART1_TX: alternate-function push-pull, 10 MHz */
+	GPIOA->CRH		&=	~( 0xFUL << 4U );
+	GPIOA->CRH		|=	 ( 0x9UL << 4U );
+
+	USART1->CR1		=	0;
+	USART1->CR2		=	0;
+	USART1->CR3		=	0;
+	USART1->BRR		=	0x1A0BU; /* 64 MHz / 9600 baud */
+	USART1->CR1		=	( 1UL << 13U ) | ( 1UL << 3U ); /* UE + TE */
+}
+
+void USER_USART_SendTelemetry( void )
+{
+	char line[32];
+
+	uint32_t rpm = ( uint32_t )g_engine_rpm;
+	uint8_t gear = ( uint8_t )( g_gear + 0.5 );
+
+	int len = snprintf( line, sizeof( line ), "%lu,%.1f,%u\r\n",
+		( unsigned long )rpm,
+		g_vehicle_speed,
+		( unsigned )gear );
+
+	if( len <= 0 ){
+		return;
+	}
+
+	for( int i = 0; i < len; i++ ){
+		USER_USART_PutChar( line[i] );
+	}
+}
+
+
 /* Superloop structure */
 int main(void)
 {
 	/* Declarations and Initializations */
 	USER_SystemClock_Config( );
 	USER_GPIO_Init( );
+	USER_USART_Init( );
+	USER_USART_SendString( "HELLO_FROM_STM32_PA9\r\n" );
 	USER_ADC_Init( );
 	USER_TIM2_Init( );
 	USER_TIM3_Init( );
@@ -70,6 +127,9 @@ int main(void)
     	LCD_Put_Num( adc_pct );
     	LCD_Set_Cursor( 2, 12 );
     	LCD_Put_Num( brake_active );
+
+    	/* Send telemetry from the superloop, not from TIM2 interrupt */
+    	USER_USART_SendTelemetry( );
 
     	GPIOA->ODR	^=	( 0x1UL << 5U );
     	USER_Delay_1sec( );
