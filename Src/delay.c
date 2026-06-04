@@ -51,3 +51,11 @@ void USER_TIM_Delay_10us(void){
 	__asm("         \tbne loop_10us       ");
 	__asm("         \tnop                 ");
 }
+
+void USER_Delay_1sec( void ){
+	__asm(" 		ldr r0, =7111111UL	");
+	__asm(" loop_1sec:\tsub r0, r0, #1\t\t");
+	__asm("         \tcmp r0, #0          ");
+	__asm("         \tbne loop_1sec       ");
+	__asm("         \tnop                 ");
+}

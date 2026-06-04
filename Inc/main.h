@@ -130,19 +130,11 @@ typedef struct
 #define NVIC_ISPR0	(*(volatile uint32_t *)0xE000E200UL)
 #define NVIC_ICPR0	(*(volatile uint32_t *)0xE000E280UL)
 
-static void USER_USART_PutChar( char c );
-void USER_USART_SendString( const char *str );
-void USER_USART_Init( void );
-void USER_USART_SendTelemetry( void );
-void USER_SystemClock_Config( void );
-void USER_GPIO_Init( void );
-void USER_Delay_1sec( void );
-void USER_ADC_Init( void );
-uint16_t USER_ADC_Read( void );
-void USER_TIM2_Init( void );
-void USER_TIM3_Init( void );
-void USER_Brake_Init( void );
-uint8_t USER_Brake_Read( void );
-
+extern volatile uint16_t g_adc_val;
+extern volatile uint8_t  g_brake;
+extern volatile double   g_engine_rpm;
+extern volatile double   g_vehicle_speed;
+extern volatile double   g_gear;
+extern volatile uint8_t  g_model_ready;
 
 #endif /* MAIN_H_ */

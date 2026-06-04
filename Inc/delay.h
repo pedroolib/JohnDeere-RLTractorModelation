@@ -8,5 +8,6 @@ void USER_TIM_Delay_1ms(void);
 void USER_TIM_Delay_100us(void);
 void USER_TIM_Delay_53us(void);
 void USER_TIM_Delay_10us(void);
+void USER_Delay_1sec( void );
 
 #endif /* DELAY_H_ */
