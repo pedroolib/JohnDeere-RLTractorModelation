@@ -130,6 +130,10 @@ typedef struct
 #define NVIC_ISPR0	(*(volatile uint32_t *)0xE000E200UL)
 #define NVIC_ICPR0	(*(volatile uint32_t *)0xE000E280UL)
 
+static void USER_USART_PutChar( char c );
+void USER_USART_SendString( const char *str );
+void USER_USART_Init( void );
+void USER_USART_SendTelemetry( void );
 void USER_SystemClock_Config( void );
 void USER_GPIO_Init( void );
 void USER_Delay_1sec( void );
@@ -139,5 +143,6 @@ void USER_TIM2_Init( void );
 void USER_TIM3_Init( void );
 void USER_Brake_Init( void );
 uint8_t USER_Brake_Read( void );
+
 
 #endif /* MAIN_H_ */
