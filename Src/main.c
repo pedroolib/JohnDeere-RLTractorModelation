@@ -35,11 +35,12 @@ int main(void)
 	USER_TIM3_Init( );
 	USER_Brake_Init( );
 
-	/* Wait for LCD power stabilization (>100ms) */
-	for( int i = 0; i < 100; i++ )
+	/* Wait for LCD power stabilization (>500ms) */
+	for( int i = 0; i < 500; i++ )
 		USER_TIM_Delay_1ms( );
 
 	LCD_Init( );
+	USER_USART_SendString( "DBG: LCD_Init done\r\n" );
 
 	/* Initialize transmission model */
 	EngTrModel_initialize( );
@@ -50,6 +51,7 @@ int main(void)
 	LCD_Put_Str( "RPM:    V:  " );
 	LCD_Set_Cursor( 2, 1 );
 	LCD_Put_Str( "G:1 A:0% B:0" );
+	USER_USART_SendString( "DBG: LCD text written\r\n" );
 
     /* Local variables for the superloop */
     uint16_t rpm_i;

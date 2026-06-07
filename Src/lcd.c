@@ -117,8 +117,10 @@ void LCD_Write_Byte(uint8_t val){
 void LCD_Write_Cmd(uint8_t val){
 	GPIOC->BSRR	=	LCD_RS_PIN_LOW;
 	LCD_Write_Byte( val );
-	if( val == 0x01U || val == 0x02U )
+	if( val == 0x01U || val == 0x02U ){
 		USER_TIM_Delay_1ms( );
+		USER_TIM_Delay_1ms( ); /* HD44780 needs 1.52 ms for Clear/Home */
+	}
 }
 
 void LCD_Put_Char(uint8_t c){
