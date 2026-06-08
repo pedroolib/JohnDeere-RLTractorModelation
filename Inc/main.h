@@ -135,6 +135,5 @@ extern volatile uint8_t  g_brake;
 extern volatile double   g_engine_rpm;
 extern volatile double   g_vehicle_speed;
 extern volatile double   g_gear;
-extern volatile uint8_t  g_model_ready;
 
 #endif /* MAIN_H_ */

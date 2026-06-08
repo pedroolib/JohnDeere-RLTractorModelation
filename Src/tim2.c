@@ -3,6 +3,7 @@
 #include "tim2.h"
 #include "adc.h"
 #include "brake.h"
+#include "app_tasks.h"
 
 void USER_TIM2_Init( void ){
 	/* Enable TIM2 clock (APB1) */
@@ -23,8 +24,8 @@ void TIM2_IRQHandler(void){
 	/* Clear update interrupt flag */
 	TIM2->SR		&=	~( 0x1UL << 0U );
 
-	/* Read sensors and signal main() to run the model */
-	g_adc_val		=	USER_ADC_Read( );
-	g_brake			=	USER_Brake_Read( );
-	g_model_ready	=	1;
+	/* Read sensors and signal the Model Control task */
+	g_adc_val = USER_ADC_Read( );
+	g_brake   = USER_Brake_Read( );
+	xEventGroupSetBits( EVENT_MODEL_READY );
 }
