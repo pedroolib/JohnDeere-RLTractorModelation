@@ -86,6 +86,8 @@ int main(void)
 
     		duty = (uint16_t)((g_vehicle_speed * 1000.0) / 120.0);
     		if( duty > 1000 ) duty = 1000;
+    		/* Minimum kickstart duty to overcome static friction on DC motors */
+    		if( duty > 0 && duty < 100 ) duty = 100;
 
     		gear_i = (uint8_t)(g_gear + 0.5);
     		if( gear_i < 1 ) gear_i = 1;

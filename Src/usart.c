@@ -40,10 +40,11 @@ void USER_USART_SendTelemetry( void )
 	uint32_t rpm = ( uint32_t )g_engine_rpm;
 	uint8_t gear = ( uint8_t )( g_gear + 0.5 );
 
-	int len = snprintf( line, sizeof( line ), "%lu,%.1f,%u\r\n",
+	int len = snprintf( line, sizeof( line ), "%lu,%.1f,%u,%u\r\n",
 		( unsigned long )rpm,
 		g_vehicle_speed,
-		( unsigned )gear );
+		( unsigned )gear,
+		( unsigned )g_adc_val );
 
 	if( len <= 0 ){
 		return;
