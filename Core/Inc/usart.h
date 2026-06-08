@@ -1,0 +1,10 @@
+#ifndef USART_H_
+#define USART_H_
+
+#include "app_tasks.h"
+
+void USER_USART_Init( void );
+void USER_USART_SendString( const char *str );
+void USER_USART_SendTelemetry( const ModelOutput_t *output );
+
+#endif /* USART_H_ */
