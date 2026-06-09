@@ -189,34 +189,34 @@ void vTaskDisplay( void *pvParameters )
     {
         vTaskDelayUntil( &xLastWakeTime, pdMS_TO_TICKS( PERIOD_DISPLAY_MS ) );
 
+        /* Debug: heartbeat para confirmar que esta tarea corre */
+        USER_USART_SendString( "DBG:DispAlive\r\n" );
+
         if( xQueueReceive( xModelToDisplayQueue, &output, 0 ) == pdTRUE )
         {
-            /* Linea 1: RPM y Velocidad */
-            LCD_Set_Cursor( 1, 5 );
-            LCD_Put_Str("    "); /* borrar residuos */
+            /* Si recibimos datos de la queue, mostrar los valores */
             LCD_Set_Cursor( 1, 5 );
             LCD_Put_Num( (uint16_t)output.engine_rpm );
-
-            LCD_Set_Cursor( 1, 12 );
-            LCD_Put_Str("    "); /* borrar residuos */
             LCD_Set_Cursor( 1, 12 );
             LCD_Put_Num( (uint16_t)output.vehicle_speed );
 
-            /* Linea 2: Gear, Aceleracion y Freno */
-            LCD_Set_Cursor( 2, 3 );
-            LCD_Put_Str(" "); /* borrar residuo */
             LCD_Set_Cursor( 2, 3 );
             LCD_Put_Num( (uint8_t)output.gear );
-
-            LCD_Set_Cursor( 2, 7 );
-            LCD_Put_Str("   "); /* borrar residuos */
-            LCD_Set_Cursor( 2, 7 );
+            LCD_Set_Cursor( 2, 6 );
+            if( output.adc_pct < 100 )
+                LCD_Put_Char( ' ' );
+            if( output.adc_pct < 10 )
+                LCD_Put_Char( ' ' );
             LCD_Put_Num( output.adc_pct );
-
-            LCD_Set_Cursor( 2, 13 );
-            LCD_Put_Str(" "); /* borrar residuo */
-            LCD_Set_Cursor( 2, 13 );
+            LCD_Set_Cursor( 2, 12 );
             LCD_Put_Num( output.brake_active );
+        }
+        else
+        {
+            /* Si NO recibimos datos, mostrar '?' para confirmar que la tarea
+             * corre pero la queue esta vacia */
+            LCD_Set_Cursor( 1, 5 );
+            LCD_Put_Str( "????" );
         }
     }
 }

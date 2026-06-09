@@ -93,9 +93,9 @@ static void MX_Peripherals_Init(void)
   /* Initial LCD display */
   LCD_Clear();
   LCD_Set_Cursor(1, 1);
-  LCD_Put_Str("RPM:    V:     ");
+  LCD_Put_Str("RPM:    V:  ");
   LCD_Set_Cursor(2, 1);
-  LCD_Put_Str("G:1 A:   B:0   ");
+  LCD_Put_Str("G:1 A:0% B:0");
   USER_USART_SendString("DBG: LCD text written\r\n");
 }
 

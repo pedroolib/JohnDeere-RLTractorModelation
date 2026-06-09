@@ -50,7 +50,7 @@ extern QueueHandle_t xRemoteQueue;
 /* Tamanos de stack */
 #define STACK_REMOTE            256U
 #define STACK_MODEL             256U
-#define STACK_TELEMETRY         256U
+#define STACK_TELEMETRY         512U
 #define STACK_DISPLAY           256U
 
 /* Periodos en ms */

@@ -41,17 +41,31 @@ void USER_USART_Init( void )
 
 void USER_USART_SendTelemetry( const ModelOutput_t *output )
 {
-	char line[32];
+	char line[48];
 	int len;
+	uint8_t cs;
 
+	/* Sanitizar valores antes de enviar */
 	uint32_t rpm = ( uint32_t )output->engine_rpm;
+	if( rpm > 9999 ) rpm = 9999;
+
 	uint8_t gear = ( uint8_t )( output->gear + 0.5 );
+	if( gear < 1 ) gear = 1;
+	if( gear > 4 ) gear = 4;
 
 	/* Descomponer velocidad en parte entera y 1 decimal (sin usar %f) */
-	uint16_t speed_whole = ( uint16_t )output->vehicle_speed;
-	uint16_t speed_frac  = ( uint16_t )(( output->vehicle_speed - ( double )speed_whole ) * 10.0 );
+	uint16_t speed_whole;
+	uint16_t speed_frac;
+	if( output->vehicle_speed < 0.0 ){
+		speed_whole = 0;
+		speed_frac  = 0;
+	} else {
+		speed_whole = ( uint16_t )output->vehicle_speed;
+		speed_frac  = ( uint16_t )(( output->vehicle_speed - ( double )speed_whole ) * 10.0 );
+	}
 
-	len = snprintf( line, sizeof( line ), "%lu,%u.%u,%u\n",
+	/* Formatear cuerpo directamente en line+1 (dejamos espacio para '$') */
+	len = snprintf( line + 1, sizeof( line ) - 5, "TR,%lu,%u.%u,%u",
 		( unsigned long )rpm,
 		( unsigned )speed_whole,
 		( unsigned )speed_frac,
@@ -61,7 +75,18 @@ void USER_USART_SendTelemetry( const ModelOutput_t *output )
 		return;
 	}
 
-	for( int i = 0; i < len; i++ ){
+	/* Calcular checksum XOR sobre el cuerpo (desde line[1]) */
+	cs = 0;
+	for( int i = 1; i <= len; i++ ){
+		cs ^= ( uint8_t )line[i];
+	}
+
+	/* Insertar '$' al inicio y '*CS\n' al final */
+	line[0] = '$';
+	snprintf( line + 1 + len, sizeof( line ) - 1 - len, "*%02X\n", ( unsigned )cs );
+
+	/* Enviar toda la trama incluyendo '\n' */
+	for( int i = 0; line[i] != '\0'; i++ ){
 		USER_USART_PutChar( line[i] );
 	}
 }
