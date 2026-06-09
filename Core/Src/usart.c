@@ -41,21 +41,27 @@ void USER_USART_Init( void )
 
 void USER_USART_SendTelemetry( const ModelOutput_t *output )
 {
-	char line[48];
-	int len;
+	char line[32];
+	char tmpbuf[6];
+	uint8_t idx = 0;
+	uint8_t i;
 	uint8_t cs;
+	uint32_t rpm;
+	uint8_t gear;
+	uint16_t speed_whole;
+	uint16_t speed_frac;
+	uint32_t rv;
+	uint16_t sv;
+	uint8_t ti;
 
-	/* Sanitizar valores antes de enviar */
-	uint32_t rpm = ( uint32_t )output->engine_rpm;
+	/* Sanitizar valores */
+	rpm = ( uint32_t )output->engine_rpm;
 	if( rpm > 9999 ) rpm = 9999;
 
-	uint8_t gear = ( uint8_t )( output->gear + 0.5 );
+	gear = ( uint8_t )( output->gear + 0.5 );
 	if( gear < 1 ) gear = 1;
 	if( gear > 4 ) gear = 4;
 
-	/* Descomponer velocidad en parte entera y 1 decimal (sin usar %f) */
-	uint16_t speed_whole;
-	uint16_t speed_frac;
 	if( output->vehicle_speed < 0.0 ){
 		speed_whole = 0;
 		speed_frac  = 0;
@@ -64,29 +70,46 @@ void USER_USART_SendTelemetry( const ModelOutput_t *output )
 		speed_frac  = ( uint16_t )(( output->vehicle_speed - ( double )speed_whole ) * 10.0 );
 	}
 
-	/* Formatear cuerpo directamente en line+1 (dejamos espacio para '$') */
-	len = snprintf( line + 1, sizeof( line ) - 5, "TR,%lu,%u.%u,%u",
-		( unsigned long )rpm,
-		( unsigned )speed_whole,
-		( unsigned )speed_frac,
-		( unsigned )gear );
+	/* Construir trama NMEA en buffer local */
+	line[idx++] = '$';
+	line[idx++] = 'T';
+	line[idx++] = 'R';
+	line[idx++] = ',';
 
-	if( len <= 0 ){
-		return;
-	}
+	/* RPM a string */
+	rv = rpm;
+	ti = 0;
+	if( rv == 0 ) tmpbuf[ti++] = '0';
+	while( rv > 0 ){ tmpbuf[ti++] = '0' + (uint8_t)( rv % 10 ); rv /= 10; }
+	while( ti > 0 ){ line[idx++] = tmpbuf[--ti]; }
 
-	/* Calcular checksum XOR sobre el cuerpo (desde line[1]) */
+	line[idx++] = ',';
+
+	/* Speed whole a string */
+	sv = speed_whole;
+	ti = 0;
+	if( sv == 0 ) tmpbuf[ti++] = '0';
+	while( sv > 0 ){ tmpbuf[ti++] = '0' + (uint8_t)( sv % 10 ); sv /= 10; }
+	while( ti > 0 ){ line[idx++] = tmpbuf[--ti]; }
+
+	line[idx++] = '.';
+	line[idx++] = '0' + (uint8_t)( speed_frac % 10 );
+	line[idx++] = ',';
+	line[idx++] = '0' + gear;
+
+	/* Calcular checksum XOR sobre el cuerpo (sin $ ni *) */
 	cs = 0;
-	for( int i = 1; i <= len; i++ ){
-		cs ^= ( uint8_t )line[i];
+	for( i = 1; i < idx; i++ ){
+		cs ^= (uint8_t)line[i];
 	}
 
-	/* Insertar '$' al inicio y '*CS\n' al final */
-	line[0] = '$';
-	snprintf( line + 1 + len, sizeof( line ) - 1 - len, "*%02X\n", ( unsigned )cs );
+	line[idx++] = '*';
+	line[idx++] = "0123456789ABCDEF"[ ( cs >> 4 ) & 0x0F ];
+	line[idx++] = "0123456789ABCDEF"[ cs & 0x0F ];
+	line[idx++] = '\n';
 
-	/* Enviar toda la trama incluyendo '\n' */
-	for( int i = 0; line[i] != '\0'; i++ ){
+	/* Enviar por USART */
+	for( i = 0; i < idx; i++ ){
 		USER_USART_PutChar( line[i] );
 	}
 }

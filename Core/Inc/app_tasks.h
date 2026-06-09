@@ -37,20 +37,20 @@ extern QueueHandle_t xRemoteQueue;
  *
  *  Tarea             Periodo (ms)   Prioridad
  *  ---------------------------------------------------
- *  RemoteControl     continuo       4  (maxima)
+ *  Display           200            5  (maxima)
+ *  RemoteControl     continuo       4
  *  ModelControl      40             3
  *  Telemetry         100            2
- *  Display           200            1
  * ================================================================ */
+#define TASK_DISPLAY_PRIO       (tskIDLE_PRIORITY + 5U)
 #define TASK_REMOTE_PRIO        (tskIDLE_PRIORITY + 4U)
 #define TASK_MODEL_PRIO         (tskIDLE_PRIORITY + 3U)
 #define TASK_TELEMETRY_PRIO     (tskIDLE_PRIORITY + 2U)
-#define TASK_DISPLAY_PRIO       (tskIDLE_PRIORITY + 1U)
 
 /* Tamanos de stack */
 #define STACK_REMOTE            256U
 #define STACK_MODEL             256U
-#define STACK_TELEMETRY         512U
+#define STACK_TELEMETRY         256U
 #define STACK_DISPLAY           256U
 
 /* Periodos en ms */
