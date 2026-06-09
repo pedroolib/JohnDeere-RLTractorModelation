@@ -7,7 +7,6 @@
 
 /* ================================================================
  *  Estructuras de datos para comunicacion entre Tareas (Queues)
- *  No se usan variables globales para compartir informacion.
  * ================================================================ */
 
 typedef struct {

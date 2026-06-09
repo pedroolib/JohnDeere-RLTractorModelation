@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "main.h"
 #include "EngTrModel.h"
@@ -144,7 +145,7 @@ void vTaskModelControl( void *pvParameters )
             else
             {
                 /* Aceleracion remota: mapear 0-255 a 1.5-100% */
-                throttle = 1.5 + ( (double)remoteCmd.remote_accel * 98.5 / 255.0 );
+                throttle = 1.5 + ( (double)remoteCmd.remote_accel * 28.5 / 255.0 );
                 if( throttle > 100.0 ) throttle = 100.0;
                 EngTrModel_U.BrakeTorque = 0.0;
             }

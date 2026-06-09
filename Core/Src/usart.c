@@ -47,11 +47,15 @@ void USER_USART_SendTelemetry( const ModelOutput_t *output )
 	uint32_t rpm = ( uint32_t )output->engine_rpm;
 	uint8_t gear = ( uint8_t )( output->gear + 0.5 );
 
-	len = snprintf( line, sizeof( line ), "%lu,%.1f,%u,%u\r\n",
+	/* Descomponer velocidad en parte entera y 1 decimal (sin usar %f) */
+	uint16_t speed_whole = ( uint16_t )output->vehicle_speed;
+	uint16_t speed_frac  = ( uint16_t )(( output->vehicle_speed - ( double )speed_whole ) * 10.0 );
+
+	len = snprintf( line, sizeof( line ), "%lu,%u.%u,%u\n",
 		( unsigned long )rpm,
-		output->vehicle_speed,
-		( unsigned )gear,
-		( unsigned )output->adc_pct );
+		( unsigned )speed_whole,
+		( unsigned )speed_frac,
+		( unsigned )gear );
 
 	if( len <= 0 ){
 		return;
