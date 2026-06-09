@@ -23,15 +23,20 @@ void USER_USART_Init( void )
 	RCC->APB2ENR	|=	( 1UL << 0U );   /* AFIOEN */
 	RCC->APB2ENR	|=	( 1UL << 14U );  /* USART1EN */
 
-	/* PA9 / USART1_TX: alternate-function push-pull, 10 MHz */
+	/* PA9 / USART1_TX: alternate-function push-pull, 10 MHz (CNF=10, MODE=01) */
 	GPIOA->CRH		&=	~( 0xFUL << 4U );
 	GPIOA->CRH		|=	 ( 0x9UL << 4U );
+
+	/* PA10 / USART1_RX: input floating (CNF=01, MODE=00) */
+	GPIOA->CRH		&=	~( 0xFUL << 8U );
+	GPIOA->CRH		|=	 ( 0x4UL << 8U ); /* CNF=01 (floating input), MODE=00 */
 
 	USART1->CR1		=	0;
 	USART1->CR2		=	0;
 	USART1->CR3		=	0;
 	USART1->BRR		=	0x1A0BU; /* 64 MHz / 9600 baud */
-	USART1->CR1		=	( 1UL << 13U ) | ( 1UL << 3U ); /* UE + TE */
+	/* UE=1, TE=1, RE=1 (enable USART, transmitter and receiver) */
+	USART1->CR1		=	( 1UL << 13U ) | ( 1UL << 3U ) | ( 1UL << 2U );
 }
 
 void USER_USART_SendTelemetry( const ModelOutput_t *output )
@@ -55,4 +60,14 @@ void USER_USART_SendTelemetry( const ModelOutput_t *output )
 	for( int i = 0; i < len; i++ ){
 		USER_USART_PutChar( line[i] );
 	}
+}
+
+int16_t USER_USART1_GetChar( void )
+{
+	/* Check RXNE (Read Data Register Not Empty) */
+	if( USART1->SR & ( 1UL << 5U ) )
+	{
+		return (int16_t)( USART1->DR & 0xFFU );
+	}
+	return -1; /* No data available */
 }

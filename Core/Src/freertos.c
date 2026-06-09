@@ -84,9 +84,11 @@ void MX_FREERTOS_Init(void)
   xSensorQueue           = xQueueCreate( 1, sizeof( SensorData_t ) );
   xModelToDisplayQueue   = xQueueCreate( 1, sizeof( ModelOutput_t ) );
   xModelToTelemetryQueue = xQueueCreate( 1, sizeof( ModelOutput_t ) );
+  xRemoteQueue           = xQueueCreate( 1, sizeof( RemoteCommand_t ) );
 
   /* Verificar que las Queues se crearon correctamente */
-  if( xSensorQueue == NULL || xModelToDisplayQueue == NULL || xModelToTelemetryQueue == NULL )
+  if( xSensorQueue == NULL || xModelToDisplayQueue == NULL ||
+      xModelToTelemetryQueue == NULL || xRemoteQueue == NULL )
   {
     /* Error en creacion de queues - bloquear */
     for( ;; );
@@ -96,7 +98,15 @@ void MX_FREERTOS_Init(void)
    * Periodo mas corto => Prioridad mas alta
    */
 
-  /* Tarea Sensor: Periodo 40 ms, Prioridad 4 (maxima) */
+  /* Tarea RemoteControl: Periodo 50 ms, Prioridad 5 (maxima) */
+  xTaskCreate( vTaskRemoteControl,
+               "Remote",
+               STACK_REMOTE,
+               NULL,
+               TASK_REMOTE_PRIO,
+               NULL );
+
+  /* Tarea Sensor: Periodo 40 ms, Prioridad 4 */
   xTaskCreate( vTaskSensor,
                "Sensor",
                STACK_SENSOR,

@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 #include "main.h"
 #include "EngTrModel.h"
 #include "lcd.h"
@@ -15,10 +16,80 @@
 QueueHandle_t xSensorQueue = NULL;
 QueueHandle_t xModelToDisplayQueue = NULL;
 QueueHandle_t xModelToTelemetryQueue = NULL;
+QueueHandle_t xRemoteQueue = NULL;
 
 /* ================================================================
- *  TAREA 1: SENSOR (Periodo 40 ms, Prioridad maxima - RMS)
- *  Lee ADC y freno, envia datos por Queue a ModelControl.
+ *  TAREA 0: REMOTE CONTROL (Periodo 50 ms, Prioridad MAXIMA - RMS)
+ *  Lee USART1 RX (PA10), parsea comandos A:xxx;B:y del ESP8266,
+ *  envia por Queue a ModelControl. Safe-stop si no hay comando.
+ * ================================================================ */
+void vTaskRemoteControl( void *pvParameters )
+{
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    RemoteCommand_t cmd;
+    char rxBuffer[32];
+    uint8_t rxIndex = 0;
+    int16_t ch;
+    uint8_t timeoutCounter = 0;
+    const uint8_t timeoutThreshold = (uint8_t)( REMOTE_TIMEOUT_MS / PERIOD_REMOTE_MS ); /* 10 ciclos */
+
+    (void)pvParameters;
+
+    for( ;; )
+    {
+        vTaskDelayUntil( &xLastWakeTime, pdMS_TO_TICKS( PERIOD_REMOTE_MS ) );
+
+        /* Leer todos los caracteres disponibles en USART1 RX */
+        while( ( ch = USER_USART1_GetChar() ) >= 0 )
+        {
+            if( ch == '\n' || ch == '\r' )
+            {
+                if( rxIndex > 0 )
+                {
+                    rxBuffer[rxIndex] = '\0';
+
+                    /* Parsear formato: A:xxx;B:y  (ej: A:128;B:1) */
+                    char *aToken = strstr( rxBuffer, "A:" );
+                    char *bToken = strstr( rxBuffer, "B:" );
+
+                    if( aToken != NULL && bToken != NULL )
+                    {
+                        uint16_t accel = (uint16_t)atoi( aToken + 2 );
+                        uint8_t  brake = (uint8_t)atoi( bToken + 2 );
+
+                        cmd.remote_accel = accel;
+                        cmd.remote_brake = ( brake != 0 ) ? 1 : 0;
+                        cmd.active       = 1;
+
+                        xQueueOverwrite( xRemoteQueue, &cmd );
+                        timeoutCounter = 0; /* Reset timeout */
+                    }
+                    rxIndex = 0;
+                }
+            }
+            else if( rxIndex < ( sizeof(rxBuffer) - 1U ) )
+            {
+                rxBuffer[rxIndex++] = (char)ch;
+            }
+        }
+
+        /* Timeout: si no recibimos comando nuevo en REMOTE_TIMEOUT_MS, enviar safe-stop */
+        timeoutCounter++;
+        if( timeoutCounter >= timeoutThreshold )
+        {
+            cmd.remote_accel = 0;
+            cmd.remote_brake = 1; /* Frenar */
+            cmd.active       = 0; /* No hay control remoto activo */
+            xQueueOverwrite( xRemoteQueue, &cmd );
+            timeoutCounter = timeoutThreshold; /* No seguir contando */
+        }
+    }
+}
+
+/* ================================================================
+ *  TAREA 1: SENSOR (Periodo 40 ms, Prioridad alta - RMS)
+ *  Lee ADC y freno local, envia datos por Queue a ModelControl.
+ *  Nota: ModelControl ignora estos datos cuando hay control remoto.
  * ================================================================ */
 void vTaskSensor( void *pvParameters )
 {
@@ -31,27 +102,28 @@ void vTaskSensor( void *pvParameters )
     {
         vTaskDelayUntil( &xLastWakeTime, pdMS_TO_TICKS( PERIOD_SENSOR_MS ) );
 
-        /* Deadline: lectura de sensores y envio por Queue */
+        /* Lectura de sensores locales (solo para telemetria/debug) */
         data.adc   = USER_ADC_Read();
         data.brake = USER_Brake_Read();
 
-        /* Sobrescribe para que ModelControl siempre vea el ultimo dato */
         xQueueOverwrite( xSensorQueue, &data );
     }
 }
 
 /* ================================================================
  *  TAREA 2: MODEL CONTROL (Periodo 40 ms, Prioridad alta)
- *  Recibe datos de Sensor, ejecuta modelo, envia resultados
- *  por Queue a Display y Telemetry.
+ *  Recibe comando remoto por Queue (overridea sensores locales).
+ *  Ejecuta modelo Simulink, envia resultados por Queue.
  * ================================================================ */
 void vTaskModelControl( void *pvParameters )
 {
     TickType_t xLastWakeTime = xTaskGetTickCount();
+    RemoteCommand_t remoteCmd;
     SensorData_t sensorData;
     ModelOutput_t output;
     double throttle;
     uint16_t duty;
+    uint8_t localBrakeActive;
 
     (void)pvParameters;
 
@@ -59,58 +131,90 @@ void vTaskModelControl( void *pvParameters )
     {
         vTaskDelayUntil( &xLastWakeTime, pdMS_TO_TICKS( PERIOD_MODEL_MS ) );
 
-        /* Deadline: recibir datos, procesar modelo, enviar resultados */
-        if( xQueueReceive( xSensorQueue, &sensorData, 0 ) == pdTRUE )
+        /* Intentar recibir comando remoto (no bloqueante) */
+        if( xQueueReceive( xRemoteQueue, &remoteCmd, 0 ) == pdTRUE && remoteCmd.active )
         {
-            /* Mapeo de entradas al modelo */
-            if( sensorData.brake == 0 )
+            /* CONTROL REMOTO ACTIVO: overridea potenciometro y freno local */
+            if( remoteCmd.remote_brake == 1 )
             {
+                /* Freno presionado remoto: cut throttle idle */
                 throttle = 1.5;
                 EngTrModel_U.BrakeTorque = 100.0;
             }
             else
             {
-                throttle = (double)((sensorData.adc * 100.0) / 4095.0);
-                if( throttle < 1.5 )
-                {
-                    throttle = 1.5;
-                }
+                /* Aceleracion remota: mapear 0-255 a 1.5-100% */
+                throttle = 1.5 + ( (double)remoteCmd.remote_accel * 98.5 / 255.0 );
+                if( throttle > 100.0 ) throttle = 100.0;
                 EngTrModel_U.BrakeTorque = 0.0;
             }
             EngTrModel_U.Throttle = throttle;
 
-            /* Ejecutar paso del modelo */
-            EngTrModel_step();
-
-            /* Preparar salida para otras tareas */
-            output.engine_rpm    = EngTrModel_Y.EngineSpeed;
-            output.vehicle_speed = EngTrModel_Y.VehicleSpeed;
-            output.gear          = EngTrModel_Y.Gear;
-
-            if( sensorData.brake == 0 )
+            /* Calcular adc_pct para telemetria */
+            output.adc_pct = (uint16_t)(( remoteCmd.remote_accel * 100U ) / 255U);
+            localBrakeActive = remoteCmd.remote_brake ? 0 : 1; /* 0=pressed, 1=not pressed */
+        }
+        else
+        {
+            /* SAFE STOP: no hay control remoto activo */
+            /* Fallback: leer sensores locales solo para no quedar sin datos */
+            if( xQueueReceive( xSensorQueue, &sensorData, 0 ) == pdTRUE )
             {
-                output.adc_pct = 0;
+                if( sensorData.brake == 0 )
+                {
+                    throttle = 1.5;
+                    EngTrModel_U.BrakeTorque = 100.0;
+                }
+                else
+                {
+                    throttle = (double)((sensorData.adc * 100.0) / 4095.0);
+                    if( throttle < 1.5 ) throttle = 1.5;
+                    EngTrModel_U.BrakeTorque = 0.0;
+                }
+                EngTrModel_U.Throttle = throttle;
+
+                if( sensorData.brake == 0 )
+                {
+                    output.adc_pct = 0;
+                }
+                else
+                {
+                    output.adc_pct = (uint16_t)((sensorData.adc * 100U) / 4095U);
+                }
+                localBrakeActive = sensorData.brake ? 0 : 1;
             }
             else
             {
-                output.adc_pct = (uint16_t)((sensorData.adc * 100U) / 4095U);
+                /* Ni remoto ni local: forzar stop */
+                EngTrModel_U.Throttle     = 1.5;
+                EngTrModel_U.BrakeTorque  = 100.0;
+                output.adc_pct = 0;
+                localBrakeActive = 0;
             }
-            output.brake_active = sensorData.brake ? 0 : 1; /* 0=pressed, 1=not pressed */
-
-            /* Enviar resultados a Display y Telemetry via Queues */
-            xQueueOverwrite( xModelToDisplayQueue,   &output );
-            xQueueOverwrite( xModelToTelemetryQueue, &output );
-
-            /* Actualizar PWM duty cycle para los 4 motores */
-            duty = (uint16_t)((output.vehicle_speed * 1000.0) / 120.0);
-            if( duty > 1000 ) duty = 1000;
-            if( duty > 0 && duty < 100 ) duty = 100;
-
-            TIM3->CCR1 = duty;
-            TIM3->CCR2 = duty;
-            TIM3->CCR3 = duty;
-            TIM3->CCR4 = duty;
         }
+
+        /* Ejecutar paso del modelo Simulink */
+        EngTrModel_step();
+
+        /* Preparar salida para otras tareas */
+        output.engine_rpm    = EngTrModel_Y.EngineSpeed;
+        output.vehicle_speed = EngTrModel_Y.VehicleSpeed;
+        output.gear          = EngTrModel_Y.Gear;
+        output.brake_active  = localBrakeActive;
+
+        /* Enviar resultados a Display y Telemetry via Queues */
+        xQueueOverwrite( xModelToDisplayQueue,   &output );
+        xQueueOverwrite( xModelToTelemetryQueue, &output );
+
+        /* Actualizar PWM duty cycle para los 4 motores */
+        duty = (uint16_t)((output.vehicle_speed * 1000.0) / 120.0);
+        if( duty > 1000 ) duty = 1000;
+        if( duty > 0 && duty < 100 ) duty = 100;
+
+        TIM3->CCR1 = duty;
+        TIM3->CCR2 = duty;
+        TIM3->CCR3 = duty;
+        TIM3->CCR4 = duty;
     }
 }
 
@@ -129,7 +233,6 @@ void vTaskDisplay( void *pvParameters )
     {
         vTaskDelayUntil( &xLastWakeTime, pdMS_TO_TICKS( PERIOD_DISPLAY_MS ) );
 
-        /* Deadline: actualizar LCD con ultimo dato recibido */
         if( xQueueReceive( xModelToDisplayQueue, &output, 0 ) == pdTRUE )
         {
             /* Linea 1: RPM y Velocidad */
@@ -168,7 +271,6 @@ void vTaskTelemetry( void *pvParameters )
     {
         vTaskDelayUntil( &xLastWakeTime, pdMS_TO_TICKS( PERIOD_TELEMETRY_MS ) );
 
-        /* Deadline: transmitir datos por USART */
         if( xQueueReceive( xModelToTelemetryQueue, &output, 0 ) == pdTRUE )
         {
             USER_USART_SendTelemetry( &output );
@@ -190,7 +292,6 @@ void vTaskHeartbeat( void *pvParameters )
     {
         vTaskDelayUntil( &xLastWakeTime, pdMS_TO_TICKS( PERIOD_HEARTBEAT_MS ) );
 
-        /* Deadline: toggle LED */
         GPIOA->ODR ^= ( 0x1UL << 5U );
     }
 }
