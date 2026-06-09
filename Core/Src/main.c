@@ -78,10 +78,8 @@ static void MX_Peripherals_Init(void)
   USER_GPIO_Init();
   USER_USART_Init();
   USER_USART_SendString("HELLO_FROM_STM32_PA9\r\n");
-  USER_ADC_Init();
   USER_TIM2_Init();
   USER_TIM3_Init();
-  USER_Brake_Init();
 
   /* Wait for LCD power stabilization (>500ms) */
   for (int i = 0; i < 500; i++)

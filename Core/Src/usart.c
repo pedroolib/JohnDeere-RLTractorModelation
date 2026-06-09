@@ -73,5 +73,10 @@ int16_t USER_USART1_GetChar( void )
 	{
 		return (int16_t)( USART1->DR & 0xFFU );
 	}
+	/* Clear overrun error if present */
+	if( USART1->SR & ( 1UL << 3U ) )
+	{
+		(void)USART1->DR; /* Read DR to clear ORE */
+	}
 	return -1; /* No data available */
 }

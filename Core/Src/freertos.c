@@ -81,14 +81,13 @@ void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer, StackTy
 void MX_FREERTOS_Init(void)
 {
   /* Crear Queues para comunicacion entre tareas */
-  xSensorQueue           = xQueueCreate( 1, sizeof( SensorData_t ) );
   xModelToDisplayQueue   = xQueueCreate( 1, sizeof( ModelOutput_t ) );
   xModelToTelemetryQueue = xQueueCreate( 1, sizeof( ModelOutput_t ) );
   xRemoteQueue           = xQueueCreate( 1, sizeof( RemoteCommand_t ) );
 
   /* Verificar que las Queues se crearon correctamente */
-  if( xSensorQueue == NULL || xModelToDisplayQueue == NULL ||
-      xModelToTelemetryQueue == NULL || xRemoteQueue == NULL )
+  if( xModelToDisplayQueue == NULL || xModelToTelemetryQueue == NULL ||
+      xRemoteQueue == NULL )
   {
     /* Error en creacion de queues - bloquear */
     for( ;; );
@@ -98,20 +97,12 @@ void MX_FREERTOS_Init(void)
    * Periodo mas corto => Prioridad mas alta
    */
 
-  /* Tarea RemoteControl: Periodo 50 ms, Prioridad 5 (maxima) */
+  /* Tarea RemoteControl: Periodo 50 ms, Prioridad 4 (maxima) */
   xTaskCreate( vTaskRemoteControl,
                "Remote",
                STACK_REMOTE,
                NULL,
                TASK_REMOTE_PRIO,
-               NULL );
-
-  /* Tarea Sensor: Periodo 40 ms, Prioridad 4 */
-  xTaskCreate( vTaskSensor,
-               "Sensor",
-               STACK_SENSOR,
-               NULL,
-               TASK_SENSOR_PRIO,
                NULL );
 
   /* Tarea ModelControl: Periodo 40 ms, Prioridad 3 */
@@ -136,14 +127,6 @@ void MX_FREERTOS_Init(void)
                STACK_DISPLAY,
                NULL,
                TASK_DISPLAY_PRIO,
-               NULL );
-
-  /* Tarea Heartbeat: Periodo 1000 ms, Prioridad 0 (minima) */
-  xTaskCreate( vTaskHeartbeat,
-               "Heartbeat",
-               STACK_HEARTBEAT,
-               NULL,
-               TASK_HEARTBEAT_PRIO,
                NULL );
 }
 
