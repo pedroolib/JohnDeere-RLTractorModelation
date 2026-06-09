@@ -95,7 +95,8 @@ void vTaskRemoteControl( void *pvParameters )
 void vTaskModelControl( void *pvParameters )
 {
     TickType_t xLastWakeTime = xTaskGetTickCount();
-    RemoteCommand_t remoteCmd;
+    static RemoteCommand_t lastRemoteCmd = { 0, 1, 0 }; /* safe defaults */
+    RemoteCommand_t freshCmd;
     ModelOutput_t output;
     double throttle;
     uint16_t duty;
@@ -107,11 +108,20 @@ void vTaskModelControl( void *pvParameters )
     {
         vTaskDelayUntil( &xLastWakeTime, pdMS_TO_TICKS( PERIOD_MODEL_MS ) );
 
-        /* Intentar recibir comando remoto (no bloqueante) */
-        if( xQueueReceive( xRemoteQueue, &remoteCmd, 0 ) == pdTRUE && remoteCmd.active )
+        /* Intentar recibir comando remoto (no bloqueante).
+         * Si hay dato nuevo lo guardamos; si no, conservamos el ultimo
+         * comando valido para no cortar la aceleracion entre mensajes
+         * de la ESP (que llegan cada ~100 ms mientras esta tarea corre
+         * cada 40 ms). */
+        if( xQueueReceive( xRemoteQueue, &freshCmd, 0 ) == pdTRUE )
+        {
+            lastRemoteCmd = freshCmd;
+        }
+
+        if( lastRemoteCmd.active )
         {
             /* CONTROL REMOTO ACTIVO */
-            if( remoteCmd.remote_brake == 1 )
+            if( lastRemoteCmd.remote_brake == 1 )
             {
                 /* Freno presionado: cut throttle idle */
                 throttle = 1.5;
@@ -120,19 +130,19 @@ void vTaskModelControl( void *pvParameters )
             else
             {
                 /* Aceleracion remota: mapear 0-100 a 1.5-100% */
-                throttle = 1.5 + ( (double)remoteCmd.remote_accel * 98.5 / 100.0 );
+                throttle = 1.5 + ( (double)lastRemoteCmd.remote_accel * 98.5 / 100.0 );
                 if( throttle > 100.0 ) throttle = 100.0;
                 EngTrModel_U.BrakeTorque = 0.0;
             }
             EngTrModel_U.Throttle = throttle;
 
             /* Calcular adc_pct para display/telemetry */
-            output.adc_pct = remoteCmd.remote_accel;
-            localBrakeActive = remoteCmd.remote_brake ? 0 : 1; /* 0=pressed, 1=not pressed */
+            output.adc_pct = lastRemoteCmd.remote_accel;
+            localBrakeActive = lastRemoteCmd.remote_brake ? 0 : 1; /* 0=pressed, 1=not pressed */
         }
         else
         {
-            /* SAFE STOP: no hay control remoto activo */
+            /* SAFE STOP: timeout de comando remoto */
             EngTrModel_U.Throttle     = 1.5;
             EngTrModel_U.BrakeTorque  = 100.0;
             output.adc_pct = 0;
@@ -183,20 +193,29 @@ void vTaskDisplay( void *pvParameters )
         {
             /* Linea 1: RPM y Velocidad */
             LCD_Set_Cursor( 1, 5 );
+            LCD_Put_Str("    "); /* borrar residuos */
+            LCD_Set_Cursor( 1, 5 );
             LCD_Put_Num( (uint16_t)output.engine_rpm );
+
+            LCD_Set_Cursor( 1, 12 );
+            LCD_Put_Str("    "); /* borrar residuos */
             LCD_Set_Cursor( 1, 12 );
             LCD_Put_Num( (uint16_t)output.vehicle_speed );
 
             /* Linea 2: Gear, Aceleracion y Freno */
             LCD_Set_Cursor( 2, 3 );
+            LCD_Put_Str(" "); /* borrar residuo */
+            LCD_Set_Cursor( 2, 3 );
             LCD_Put_Num( (uint8_t)output.gear );
-            LCD_Set_Cursor( 2, 6 );
-            if( output.adc_pct < 100 )
-                LCD_Put_Char( ' ' );
-            if( output.adc_pct < 10 )
-                LCD_Put_Char( ' ' );
+
+            LCD_Set_Cursor( 2, 7 );
+            LCD_Put_Str("   "); /* borrar residuos */
+            LCD_Set_Cursor( 2, 7 );
             LCD_Put_Num( output.adc_pct );
-            LCD_Set_Cursor( 2, 12 );
+
+            LCD_Set_Cursor( 2, 13 );
+            LCD_Put_Str(" "); /* borrar residuo */
+            LCD_Set_Cursor( 2, 13 );
             LCD_Put_Num( output.brake_active );
         }
     }
