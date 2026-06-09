@@ -138,7 +138,7 @@ void vTaskModelControl( void *pvParameters )
 
             /* Calcular adc_pct para display/telemetry */
             output.adc_pct = lastRemoteCmd.remote_accel;
-            localBrakeActive = lastRemoteCmd.remote_brake ? 0 : 1; /* 0=pressed, 1=not pressed */
+            localBrakeActive = lastRemoteCmd.remote_brake ? 1 : 0; /* 1=pressed, 0=not pressed */
         }
         else
         {
